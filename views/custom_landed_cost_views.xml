@@ -91,6 +91,7 @@
                                 <field name="quantity" readonly="1"/>
                                 <field name="former_cost_per_unit" readonly="1" widget="monetary"/>
                                 <field name="former_cost" readonly="1"/>
+                                <field name="additional_landed_cost_per_unit"/>
                                 <field name="additional_landed_cost"/>
                             </tree>
                         </field>

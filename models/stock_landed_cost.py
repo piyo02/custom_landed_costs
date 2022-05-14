@@ -45,7 +45,7 @@ class LandedCost(models.Model):
     account_journal_id = fields.Many2one(
         'account.journal', 'Bank Journal',
         required=True, states={'done': [('readonly', True)]})
-    partner_id = fields.Many2one('res.partner', required=True, string='Partner')
+    partner_id = fields.Many2one('res.partner', required=True, string='Ekspedisi')
 
     def get_purchase_order_ids(self):
         purchase_orders = []
@@ -206,6 +206,7 @@ class LandedCost(models.Model):
 
         digits = dp.get_precision('Product Price')(self._cr)
         towrite_dict = {}
+        divide_dict = {}
         for cost in self.filtered(lambda cost: cost.picking_ids):
             total_qty = 0.0
             total_cost = 0.0
@@ -257,11 +258,16 @@ class LandedCost(models.Model):
 
                         if valuation.id not in towrite_dict:
                             towrite_dict[valuation.id] = value
+                            divide_dict[valuation.id] = valuation.quantity or valuation.weight or valuation.volume or valuation.former_cost
                         else:
                             towrite_dict[valuation.id] += value
         if towrite_dict:
             for key, value in towrite_dict.items():
                 AdjustementLines.browse(key).write({'additional_landed_cost': value})
+                
+                divide = divide_dict[key] or 1.0
+                AdjustementLines.browse(key).write({'additional_landed_cost_per_unit': value/divide})
+
         return True
 
 
@@ -315,7 +321,10 @@ class AdjustmentLines(models.Model):
         'Former Cost(Per Unit)', compute='_compute_former_cost_per_unit',
         digits=0, store=True)
     additional_landed_cost = fields.Float(
-        'Additional Landed Cost',
+        'Add. Landed Cost',
+        digits=dp.get_precision('Product Price'))
+    additional_landed_cost_per_unit = fields.Float(
+        'Add. Landed Cost (Per Unit)',
         digits=dp.get_precision('Product Price'))
     final_cost = fields.Float(
         'Final Cost', compute='_compute_final_cost',
