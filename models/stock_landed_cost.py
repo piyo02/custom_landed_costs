@@ -47,6 +47,13 @@ class LandedCost(models.Model):
         required=True, states={'done': [('readonly', True)]})
     partner_id = fields.Many2one('res.partner', required=True, string='Partner')
 
+    def get_purchase_order_ids(self):
+        purchase_orders = []
+        for picking_id in self.picking_ids:
+            purchase_orders.append( picking_id.purchase_id.id )
+        
+        return purchase_orders
+
     @api.one
     @api.depends('cost_lines.price_unit')
     def _compute_total_amount(self):
@@ -54,14 +61,9 @@ class LandedCost(models.Model):
 
     @api.onchange('picking_ids')
     def _onchange_picking_ids(self):
-        purchase_orders = []
-        for picking_id in self.picking_ids:
-            purchase_orders.append( picking_id.purchase_id.id )
+        purchase_orders = self.get_purchase_order_ids()
         
-        if purchase_orders:
-            self.purchase_order_ids = [(6, 0, purchase_orders)]
-        else:
-            self.purchase_order_ids = [(6, 0, [])]
+        self.purchase_order_ids = [(6, 0, purchase_orders)]
 
     @api.model
     def create(self, vals):
@@ -145,7 +147,8 @@ class LandedCost(models.Model):
                 ]
 
             move = move.create(move_vals)
-            cost.write({'state': 'done', 'account_move_id': move.id})
+            purchase_orders = self.get_purchase_order_ids()
+            cost.write({'state': 'done', 'account_move_id': move.id, 'purchase_order_ids': [(6, 0, purchase_orders)]})
             move.post()
         return True
 
