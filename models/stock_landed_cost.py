@@ -69,6 +69,15 @@ class LandedCost(models.Model):
     def create(self, vals):
         if vals.get('name', _('New')) == _('New'):
             vals['name'] = self.env['ir.sequence'].next_by_code('custom.landed.cost')
+        
+        purchase_orders = []
+        for picking_id in vals['picking_ids'][0][2]:
+            picking = self.env['stock.picking'].search([
+                ('id', '=', picking_id)
+            ])
+            purchase_orders.append( picking.purchase_id.id )
+        vals['purchase_order_ids'] = [(6, 0, purchase_orders)]
+        
         return super(LandedCost, self).create(vals)
 
     @api.multi
