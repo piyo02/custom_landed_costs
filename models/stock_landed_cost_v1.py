@@ -39,9 +39,12 @@ class LandedCost(models.Model):
         ('done', 'Posted'),
         ('cancel', 'Cancelled')], 'State', default='draft',
         copy=False, readonly=True, track_visibility='onchange')
-    account_invoice_id = fields.Many2one(
-        'account.invoice', 'Journal Payment',
+    account_move_id = fields.Many2one(
+        'account.move', 'Journal Payment',
         copy=False, readonly=True)
+    account_journal_id = fields.Many2one(
+        'account.journal', 'Bank Journal',
+        required=True, states={'done': [('readonly', True)]})
     partner_id = fields.Many2one('res.partner', required=True, string='Ekspedisi')
 
     def get_purchase_order_ids(self):
@@ -105,34 +108,13 @@ class LandedCost(models.Model):
             raise UserError(_('Cost and adjustments lines do not match. You should maybe recompute the landed costs.'))
 
         for cost in self:
-            invoice_lines = []
-            for line in cost.cost_lines:
-                invoice_lines.append( (0, 0, {
-                    'account_id': line.product_id.property_account_expense_id.id,
-                    'product_id': line.product_id.id,
-                    'name': cost.name + ': ' + line.product_id.name,
-                    'quantity': 1,
-                    'uom_id': line.product_id.uom_id.id,
-                    'price_unit': line.price_unit,
-                }) )
-
-            bill = self.env['account.invoice']
-            bill_vals = {
-                'partner_id': cost.partner_id.id,
-                'origin': cost.name,
-                'journal_id': 3,
-                'invoice_line_ids': invoice_lines,
-                'amount_untaxed': cost.amount_total,
-                'amount_tax': 0,
-                'amount_total': cost.amount_total,
-                'account_id': 251,
-                'date': '',
-                'date_invoice': '',
-                'state': 'draft',
-                'type': 'in_invoice',
+            move = self.env['account.move']
+            move_vals = {
+                'journal_id': cost.account_journal_id.id,
+                'date': cost.date,
+                'ref': cost.name,
+                'line_ids': [],
             }
-            bill = bill.create(bill_vals)
-
             for line in cost.valuation_adjustment_lines.filtered(lambda line: line.move_id):
                 per_unit = line.final_cost / line.quantity
                 diff = per_unit - line.former_cost_per_unit
@@ -168,9 +150,15 @@ class LandedCost(models.Model):
                     if quant.location_id.usage != 'internal':
                         qty_out += quant.qty
                 
+                move_vals['line_ids'] = [
+                    [0, 0, {'debit': self.amount_total, 'name': 'Payment ' + self.name, 'account_id': 331, 'partner_id': self.partner_id.id}],
+                    [0, 0, {'credit': self.amount_total, 'name': 'Payment ' + self.name, 'account_id': self.account_journal_id.default_credit_account_id.id, 'partner_id': self.partner_id.id}],
+                ]
+
+            move = move.create(move_vals)
             purchase_orders = self.get_purchase_order_ids()
-            cost.write({'state': 'done', 'account_invoice_id': bill.id, 'purchase_order_ids': [(6, 0, purchase_orders)]})
-            bill.action_invoice_open()
+            cost.write({'state': 'done', 'account_move_id': move.id, 'purchase_order_ids': [(6, 0, purchase_orders)]})
+            move.post()
         return True
 
     def _check_sum(self):

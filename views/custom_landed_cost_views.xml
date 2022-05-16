@@ -27,8 +27,7 @@
                             </group>
                             <group>
                                 <field name="partner_id" context="{'search_default_supplier':1, 'default_supplier':1, 'default_customer':0}" domain="[('supplier','=',True)]"/>
-                                <field name="account_journal_id"/>
-                                <field name="account_move_id" domain="[('type', '=', 'bank')]"/>
+                                <field name="account_invoice_id"/>
                             </group>
                         </group>
 
